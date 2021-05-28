@@ -33,12 +33,12 @@ def read_data(dataset_path):
             del df["tweet_created"]
             del df["tweet_coord"]
             df["text"]=df.apply(preprocess, axis=1)
-            print(df)
+            return df
     except IOError:
         print("Download the dataset files first.")
 
 
 if __name__=='__main__':
-    data1 = read_data("twitter-airline-sentiment/Tweets.csv")
+    data = read_data("twitter-airline-sentiment/Tweets.csv")
 
 #570306133677760513,neutral,1.0,,,Virgin America,,cairdin,,0,@VirginAmerica What @dhepburn said.,,2015-02-24 11:35:52 -0800,,Eastern Time (US & Canada)
