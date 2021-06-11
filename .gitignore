@@ -7,3 +7,6 @@ glove/glove.twitter.27B.100d.txt
 glove/glove.twitter.27B.200d.txt
 glove/glove.twitter.27B.50d.txt
 glove/glove.twitter.27B.25d.txt
+twitter-airline-sentiment/.database.sqlite.icloud
+twitter-airline-sentiment/.Tweets.csv.icloud
+customer-support-on-twitter/twcs/.twcs.csv.icloud
