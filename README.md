@@ -4,6 +4,8 @@
 this is the repository for my graduation project: 
 sentiment analysis on twitter for brands and corporations. twitter mentions for airline companies are used as the training data.
 
+### current test accuracy score: 81%
+
 dataset sources:
 
 - https://www.kaggle.com/crowdflower/twitter-airline-sentiment
