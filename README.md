@@ -35,5 +35,5 @@ How to run:
    
  4. create and evaluate model
 
- > python3 sentiment.py
+ python3 sentiment.py
   
