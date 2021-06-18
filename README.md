@@ -4,6 +4,10 @@
 this is the repository for my graduation project: 
 sentiment analysis on twitter for brands and corporations. twitter mentions for airline companies are used as the training data.
 
+the model uses word embeddings and a bidirectional LSTM neural network to predict the sentiment (positive, negative, neutral) of a tweet/customer feedback.
+
+further improvements will include using part-of-speech tags and dependency information of words in addition to word embeddings.
+
 ### current test accuracy score: 81%
 
 dataset sources:
