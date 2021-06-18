@@ -19,21 +19,15 @@ You need to download the dataset before running the code.
 
 How to run:
 
-1. create a new conda environment and activate:
+1. create a new conda environment and install requirements:
 
-> conda create -n <env-name> python=3.6
+> conda create --name <env> --file requirements.txt
   
-> conda activate <env-name>
-  
-2. install requirements
-  
-> python3 -m pip install -r requirements.txt
-  
-3. create word embeddings
+2. create word embeddings
   
 > python3 word_embeddings.py
   
-4. create and evaluate model
+3. create and evaluate model
   
 > python3 sentiment.py
   
