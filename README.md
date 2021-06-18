@@ -21,14 +21,14 @@ How to run:
 
 1. create a new conda environment and install requirements:
 
-> conda create --name your-environment-name --file requirements.txt
-> conda activate your-environment-name
+conda create --name your-environment-name --file requirements.txt
+conda activate your-environment-name
   
 2. create word embeddings
   
-> python3 word_embeddings.py
+python3 word_embeddings.py
   
 3. create and evaluate model
   
-> python3 sentiment.py
+python3 sentiment.py
   
