@@ -22,6 +22,7 @@ How to run:
 1. create a new conda environment and install requirements:
 
 conda create --name your-environment-name --file requirements.txt
+
 conda activate your-environment-name
   
 2. create word embeddings
