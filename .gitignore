@@ -10,3 +10,9 @@ glove/glove.twitter.27B.25d.txt
 twitter-airline-sentiment/.database.sqlite.icloud
 twitter-airline-sentiment/.Tweets.csv.icloud
 customer-support-on-twitter/twcs/.twcs.csv.icloud
+Tweets.csv
+snippets.txt
+sentiment-analysis.ipynb
+w2v_embeddings.pickle
+vectors.kv
+glove.twitter.27B.100d.txt

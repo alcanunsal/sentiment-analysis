@@ -1,71 +1,63 @@
 import os, csv, re, string
-from kaggle.api.kaggle_api_extended import KaggleApi
 import pandas as pd
 import numpy as np
-import preprocessor as p
-import seaborn as sns
-import matplotlib.pyplot as plt
-import nltk
 from sklearn.model_selection import train_test_split
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 import matplotlib.pyplot as plt
 from keras.models import Sequential
-from keras.layers import Flatten, Dense, Embedding, SpatialDropout1D
+from keras.layers import Dense, Embedding, Bidirectional, Dropout
 from keras.layers.recurrent import LSTM
-from keras.utils import to_categorical
-from nltk.stem import PorterStemmer, LancasterStemmer
+from keras import optimizers
+from sklearn.preprocessing import LabelBinarizer
+import time, pickle
 
-api = KaggleApi()
-api.authenticate()
-#nltk.download('punkt')
-#api.dataset_download_files('thoughtvector/customer-support-on-twitter')
-#api.dataset_download_files('crowdflower/twitter-airline-sentiment')
+from gensim.models import KeyedVectors, Word2Vec
+from tqdm import tqdm
 
+tqdm.pandas()
 
-def preprocess(row):
-    txt = row["text"]
-    if txt == "":
-        return txt
-    p.set_options(p.OPT.URL, p.OPT.MENTION, p.OPT.RESERVED, p.OPT.NUMBER)
-    txt = p.clean(txt)
-    txt = txt.lower()
-    #txt = ''.join([porter.stem(word) for word in txt.split()])
-    #txt = re.sub(r'\d+', '', txt)
-    #txt = txt.translate(str.maketrans("","", string.punctuation))
-    return txt
+def decontracted(phrase):
+    phrase = re.sub(r"n't", " not", phrase)
+    phrase = re.sub(r"nt ", " not ", phrase)
+    phrase = re.sub(r"'re", " are", phrase)
+    phrase = re.sub(r"youre", "you are", phrase)
+    phrase = re.sub(r"'s", " is", phrase)
+    phrase = re.sub(r"'d", " would", phrase)
+    phrase = re.sub(r"'ll", " will", phrase)
+    phrase = re.sub(r"'ve", " have", phrase)
+    phrase = re.sub(r"'m", " am", phrase)
+    phrase = re.sub(r"\#", "", phrase)
+    return phrase
 
-def read_data(dataset_path):
+def remove_mentions(text):
+    return re.sub(r"(?:\@|http?\://|https?\://|www)\S+", "", text)
 
-    try:
-        with open(dataset_path) as f:
-            reader = list(csv.reader(f))
-            indices=reader[0]
-            data = reader[1:]
-            #tweet_id,airline_sentiment,airline_sentiment_confidence,negativereason,negativereason_confidence,airline,airline_sentiment_gold,name,negativereason_gold,retweet_count,text,tweet_coord,tweet_created,tweet_location,user_timezone
-            df = pd.DataFrame(data, columns=indices)
-            del df["retweet_count"]
-            del df["tweet_location"]
-            del df["user_timezone"]
-            del df["tweet_created"]
-            del df["tweet_coord"]
-            df["text"]=df.apply(preprocess, axis=1)
-            f.close()
-            return df
-    except IOError:
-        print("Download the dataset files first.")
-        
-def convert_sentiment(data):
-    y = data['airline_sentiment']
-    y = np.array(list(map(lambda x: 2 if x=="positive" else (1 if x=="negative" else 0), y)))
-    return y
+def preprocess(text):
+    text = decontracted(text.lower())
+    punc = string.punctuation
+    #whitelist = ["not", "no"]
+    text = remove_mentions(text)
+    #text = text.translate(str.maketrans("","", string.punctuation))
+    text = re.sub(r'#', '', text)
+    text = re.sub('["“]', '', text)
+    text = re.sub('([.,:-;!$?()])', r' \1 ', text)
+    #text = re.sub("\. \. \.", " ... ", text)
+    return text
 
-def tokenize(x_train, x_test):
-    
-    return x_train, x_test
+def clear_unused_fields(data, unused_fields):
+    for field in unused_fields:
+        data = data.drop(field,1)
+    return data
 
-def extract_features(x_train, x_test):
-    tokenizer = Tokenizer(num_words=1000)
+def load_embeddings():
+    reloaded_word_vectors = KeyedVectors.load('vectors.kv')
+    return reloaded_word_vectors
+
+def create_embedding_matrix(x_train, x_test):
+    x_train = list(x_train)
+    x_test = list(x_test)
+    tokenizer = Tokenizer(num_words=len(vocab))
     tokenizer.fit_on_texts(x_train)
     
     x_train = tokenizer.texts_to_sequences(x_train)
@@ -77,13 +69,8 @@ def extract_features(x_train, x_test):
     x_test = pad_sequences(x_test, padding='post', maxlen=maxlen)
     
     embeddings_dict = dict()
-    glove_file = open('glove/glove.twitter.27B.100d.txt', encoding='utf8')
-    for line in glove_file:
-        records = line.split()
-        word = records[0]
-        vector_dimensions = np.asarray(records[1:], dtype='float32')
-        embeddings_dict[word] = vector_dimensions
-    glove_file.close()
+    for word in vocab:
+        embeddings_dict[word] = list(embeddings[word])    
     
     embedding_matrix = np.zeros((vocab_size, 100))
     
@@ -93,52 +80,44 @@ def extract_features(x_train, x_test):
             embedding_matrix[index] = embedding_vector
             
     return x_train, x_test, embedding_matrix, vocab_size, maxlen
-            
-    
-    
 
+def read_tweets():
+    data = pd.read_csv('twitter-airline-sentiment/Tweets.csv')
+    pd.set_option('display.max_colwidth', None)
+    data = clear_unused_fields(data, ['negativereason', 'negativereason_confidence', 'airline', 'airline_sentiment_gold', 
+                                      'name', 'negativereason_gold', 'retweet_count', 'tweet_coord', 'tweet_created',
+                                      'tweet_location','user_timezone', 'airline_sentiment_confidence', 'tweet_id'])
+    data.text = data.text.apply(preprocess)
+    return data
+
+def labels_to_categorical(y_train,y_test):
+    lb = LabelBinarizer()
+    y_train = list(y_train)
+    y_test = list(y_test)
+    y_train_categorical = lb.fit_transform(y_train)
+    y_test_categorical = lb.fit_transform(y_test)
+    return y_train_categorical, y_test_categorical
+ 
 if __name__=='__main__':
-    data = read_data("twitter-airline-sentiment/Tweets.csv")
-    #sns.countplot(x='airline_sentiment', data=data)
-    #plt.show()
-    y = convert_sentiment(data)
-    x = np.array(data["text"])
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.20, random_state=42)
-    y_train = to_categorical(y_train, num_classes=3)
-    y_test = to_categorical(y_test, num_classes=3)
-    x_train, x_test, embedding_matrix, vocab_size, maxlen = extract_features(x_train, x_test)
+    embeddings = load_embeddings()
+    vocab = list(embeddings.key_to_index.keys())
+    data = read_tweets()
+
+    x_train, x_test, y_train, y_test = train_test_split(data['text'], data['airline_sentiment'], test_size=0.2)
+    x_train, x_test, embedding_matrix, vocab_size, maxlen = create_embedding_matrix(x_train, x_test)
+
+    y_train_categorical, y_test_categorical = labels_to_categorical(y_train, y_test)
+    
     model = Sequential()
     embedding_layer = Embedding(vocab_size, 100, weights=[embedding_matrix], input_length=maxlen, trainable=False)
     model.add(embedding_layer)
-    model.add(SpatialDropout1D(0.4))
-    model.add(LSTM(128))
-    model.add(Dense(3, activation='softmax'))
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['acc'])
+    model.add(Dropout(0.2))
+    model.add(Bidirectional(LSTM(64,dropout=0.2,recurrent_dropout=0.3)))
+    model.add(Dropout(0.2))
+    model.add(Dense(100, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(3,activation='softmax'))
+    model.compile(loss='binary_crossentropy',optimizer="adam",metrics=['accuracy'])
+    history = model.fit(x_train, y_train_categorical, batch_size=32, epochs=20, verbose=1, validation_split=0.2)
+    score = model.evaluate(x_test, y_test_categorical, verbose=1)
     
-    history = model.fit(x_train, y_train, batch_size=128, epochs=6, verbose=1, validation_split=0.2)
-    score = model.evaluate(x_test, y_test, verbose=1)
-    print("Test Score:", score[0])
-    print("Test Accuracy:", score[1])
-    
-    plt.plot(history.history['acc'])
-    plt.plot(history.history['val_acc'])
-
-    plt.title('model accuracy')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['train','test'], loc='upper left')
-    plt.show()
-
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-
-    plt.title('model loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train','test'], loc='upper left')
-    plt.show()
-    
-#sources:
-#https://medium.com/@datamonsters/text-preprocessing-in-python-steps-tools-and-examples-bf025f872908 : preprocessing
-#https://stackabuse.com/python-for-nlp-movie-sentiment-analysis-using-deep-learning-in-keras/ : initial lstm implementation
-#https://nlp.stanford.edu/projects/glove/ : word embeddings
